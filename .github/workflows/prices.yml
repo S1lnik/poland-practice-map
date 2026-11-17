@@ -1,0 +1,31 @@
+name: Update CSFloat prices
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: prices
+jobs:
+  prices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Load previous snapshot
+        run: git fetch --depth=1 origin prices && git show FETCH_HEAD:prices.json > prev.json || echo '{}' > prev.json
+      - name: Fetch prices from CSFloat
+        run: node scripts/update-prices.mjs
+      - name: Publish to the prices branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd out
+          git init -q -b prices
+          git add prices.json
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "Prices $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" prices
